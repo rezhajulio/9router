@@ -734,55 +734,102 @@ export async function getChartData(period = "7d") {
     return buckets;
   }
 
-  const labelFn = (d) => d.toLocaleDateString("en-US", { month: "short", day: "numeric" });
+  // ponytail: adaptive granularity keeps point counts legible — day for short ranges,
+  // week for 1y, month for 2y/all. "all" spans from earliest data so it matches stats totals.
+  const GRANULARITY = {
+    "7d": { unit: "day", days: 7 },
+    "30d": { unit: "day", days: 30 },
+    "60d": { unit: "day", days: 60 },
+    "1y": { unit: "week", days: 365 },
+    "2y": { unit: "month", days: 730 },
+    "all": { unit: "month", days: null },
+  };
+  const { unit, days } = GRANULARITY[period] || GRANULARITY["60d"];
+  const today = new Date();
+  const startOfToday = new Date(today.getFullYear(), today.getMonth(), today.getDate());
 
-  if (period === "all") {
-    const dayRows = loadDaysInRange(db, null);
-    if (!dayRows.length) return [];
-    const dayMap = {};
-    for (const r of dayRows) dayMap[r.dateKey] = parseJson(r.data, {});
+  const dayRows = loadDaysInRange(db, days);
+  const dayMap = {};
+  for (const r of dayRows) dayMap[r.dateKey] = parseJson(r.data, {});
+  const tokensOf = (dd) => (dd.promptTokens || 0) + (dd.completionTokens || 0);
 
-    const earliest = new Date(dayRows[0].dateKey + "T00:00:00");
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    const diffDays = Math.max(1, Math.round((today - earliest) / 86400000) + 1);
-
-    return Array.from({ length: diffDays }, (_, i) => {
-      const d = new Date(earliest);
-      d.setDate(d.getDate() + i);
+  if (unit === "day") {
+    const labelFn = (d) => d.toLocaleDateString("en-US", { month: "short", day: "numeric" });
+    return Array.from({ length: days }, (_, i) => {
+      const d = new Date(startOfToday);
+      d.setDate(d.getDate() - (days - 1 - i));
       const dateKey = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
-      const dayData = dayMap[dateKey];
+      const dd = dayMap[dateKey];
       return {
         label: labelFn(d),
-        tokens: dayData ? (dayData.promptTokens || 0) + (dayData.completionTokens || 0) : 0,
-        cost: dayData ? (dayData.cost || 0) : 0,
-        requests: dayData ? (dayData.requests || 0) : 0,
+        tokens: dd ? tokensOf(dd) : 0,
+        cost: dd ? dd.cost || 0 : 0,
+        requests: dd ? dd.requests || 0 : 0,
       };
     });
   }
 
-  // ponytail: chart bucket = day count for day-rolled periods; "all" capped at 2y for render perf
-  const BUCKET_BY_PERIOD = { "7d": 7, "30d": 30, "60d": 60, "1y": 365, "2y": 730, "all": 730 };
-  const bucketCount = BUCKET_BY_PERIOD[period] || 60;
-  const today = new Date();
+  if (unit === "week") {
+    const WEEK_MS = 7 * 86400000;
+    const weekCount = Math.ceil(days / 7);
+    const firstStart = new Date(startOfToday);
+    firstStart.setDate(firstStart.getDate() - (weekCount - 1) * 7);
+    const firstTime = firstStart.getTime();
+    const labelFn = (d) => d.toLocaleDateString("en-US", { month: "short", day: "numeric" });
+    const buckets = Array.from({ length: weekCount }, (_, i) => {
+      const d = new Date(firstStart);
+      d.setDate(d.getDate() + i * 7);
+      return { label: labelFn(d), tokens: 0, cost: 0, requests: 0 };
+    });
+    for (const [key, dd] of Object.entries(dayMap)) {
+      const [y, m, day] = key.split("-").map(Number);
+      const idx = Math.floor((new Date(y, m - 1, day).getTime() - firstTime) / WEEK_MS);
+      if (idx >= 0 && idx < weekCount) {
+        buckets[idx].tokens += tokensOf(dd);
+        buckets[idx].cost += dd.cost || 0;
+        buckets[idx].requests += dd.requests || 0;
+      }
+    }
+    return buckets;
+  }
 
-  // Build map of dateKey → day data
-  const dayRows = loadDaysInRange(db, bucketCount);
-  const dayMap = {};
-  for (const r of dayRows) dayMap[r.dateKey] = parseJson(r.data, {});
-
-  return Array.from({ length: bucketCount }, (_, i) => {
-    const d = new Date(today);
-    d.setDate(d.getDate() - (bucketCount - 1 - i));
-    const dateKey = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
-    const dayData = dayMap[dateKey];
-    return {
-      label: labelFn(d),
-      tokens: dayData ? (dayData.promptTokens || 0) + (dayData.completionTokens || 0) : 0,
-      cost: dayData ? (dayData.cost || 0) : 0,
-      requests: dayData ? (dayData.requests || 0) : 0,
-    };
+  // month: fixed 24-month window for 2y, earliest-data → now for "all"
+  const monthIndex = (y, mZeroBased) => y * 12 + mZeroBased;
+  let startYear, startMonth;
+  if (days == null) {
+    let earliest = null;
+    for (const key of Object.keys(dayMap)) if (earliest == null || key < earliest) earliest = key;
+    if (earliest) {
+      const [y, m] = earliest.split("-").map(Number);
+      startYear = y;
+      startMonth = m - 1;
+    } else {
+      startYear = today.getFullYear();
+      startMonth = today.getMonth();
+    }
+  } else {
+    const monthsBack = Math.round(days / 30.4375) - 1;
+    const d = new Date(today.getFullYear(), today.getMonth() - monthsBack, 1);
+    startYear = d.getFullYear();
+    startMonth = d.getMonth();
+  }
+  const startIdx = monthIndex(startYear, startMonth);
+  const monthCount = monthIndex(today.getFullYear(), today.getMonth()) - startIdx + 1;
+  const labelFn = (d) => d.toLocaleDateString("en-US", { month: "short", year: "numeric" });
+  const buckets = Array.from({ length: monthCount }, (_, i) => {
+    const d = new Date(startYear, startMonth + i, 1);
+    return { label: labelFn(d), tokens: 0, cost: 0, requests: 0 };
   });
+  for (const [key, dd] of Object.entries(dayMap)) {
+    const [y, m] = key.split("-").map(Number);
+    const idx = monthIndex(y, m - 1) - startIdx;
+    if (idx >= 0 && idx < monthCount) {
+      buckets[idx].tokens += tokensOf(dd);
+      buckets[idx].cost += dd.cost || 0;
+      buckets[idx].requests += dd.requests || 0;
+    }
+  }
+  return buckets;
 }
 
 function formatLogDate(date = new Date()) {
