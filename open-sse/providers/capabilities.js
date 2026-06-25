@@ -410,6 +410,13 @@ export const PROVIDER_CAPABILITIES = {
     "poolside/laguna-xs-2.1:free":      { tools: true, reasoning: true, thinkingFormat: "nous", contextWindow: 262144, maxOutput: 32768 },
     "stealth/missingno":                { tools: true, reasoning: true, thinkingFormat: "nous", contextWindow: 262144, maxOutput: 131072 },
   },
+
+  // Cast AI (Kimchi via API key) — per-model overrides
+  "castai": {
+    "kimi-k2.6":         { vision: true, reasoning: true, thinkingFormat: "kimi", contextWindow: 250000, maxOutput: 32000 },
+    "minimax-m3":        { vision: true, reasoning: true, thinkingFormat: "minimax", contextWindow: 200000, maxOutput: 32000 },
+    "nemotron-3-ultra-fp4": { reasoning: true, contextWindow: 128000, maxOutput: 32000 },
+  },
 };
 
 // Qoder model capability table. The model ids are opaque (`dmodel`, `kmodel`,
