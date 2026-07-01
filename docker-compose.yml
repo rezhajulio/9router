@@ -8,14 +8,40 @@ services:
     restart: unless-stopped
     env_file:
       - .env
+    environment:
+      DATA_DIR: /app/data
+      PORT: "20128"
+      HOSTNAME: "0.0.0.0"
+      NODE_ENV: production
+      HEADROOM_URL: http://headroom:8787
     volumes:
       - ./data:/app/data
       - ./data-home:/app/data-home
-    ports:
-      - "127.0.0.1:20128:20128"
+    # Internal only - no external port exposure
+    # Accessible only via Docker network (e.g., from other containers)
+    depends_on:
+      headroom:
+        condition: service_started
     networks:
       - web
+      - internal
+
+  headroom:
+    image: ghcr.io/chopratejas/headroom:latest
+    container_name: headroom
+    restart: unless-stopped
+    ports:
+      - "8787:8787"
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:8787/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    networks:
+      - internal
 
 networks:
+  internal:
   web:
     external: true

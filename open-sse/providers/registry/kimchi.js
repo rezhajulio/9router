@@ -1,3 +1,7 @@
+// Kimchi provider - dual mode: accepts BOTH OAuth tokens and Cast AI API keys
+// 
+// This allows seamless migration of existing API-key connections to this provider
+// while still supporting upstream OAuth token flow.
 export default {
   id: "kimchi",
   priority: 95,
@@ -11,6 +15,7 @@ export default {
     website: "https://kimchi.dev",
     notice: {
       signupUrl: "https://app.kimchi.dev",
+      apiKeyUrl: "https://cast.ai", // Also supports Cast AI API keys for legacy migration
     },
   },
   category: "freeTier",
