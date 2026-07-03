@@ -411,11 +411,17 @@ export const PROVIDER_CAPABILITIES = {
     "stealth/missingno":                { tools: true, reasoning: true, thinkingFormat: "nous", contextWindow: 262144, maxOutput: 131072 },
   },
 
-  // Cast AI (Kimchi via API key) — per-model overrides
-  "castai": {
+  // Kimchi (dual-mode: OAuth + Cast AI API keys) - v0.5.16+
+  // Cast AI API keys from https://cast.ai now work directly on upstream endpoint.
+  "kimchi": {
     "kimi-k2.6":         { vision: true, reasoning: true, thinkingFormat: "kimi", contextWindow: 250000, maxOutput: 32000 },
+    "kimi-k2.7":         { vision: true, reasoning: true, thinkingFormat: "openai", thinkingCanDisable: false, contextWindow: 256000, maxOutput: 32000 },
+    "kimi-k2.5":         { vision: true, reasoning: true, thinkingFormat: "openai", thinkingCanDisable: false, contextWindow: 164000, maxOutput: 32000 },
     "minimax-m3":        { vision: true, reasoning: true, thinkingFormat: "minimax", contextWindow: 200000, maxOutput: 32000 },
+    "minimax-m2.7":      { vision: true, reasoning: true, thinkingFormat: "openai", thinkingCanDisable: false, contextWindow: 200000, maxOutput: 48000 },
     "nemotron-3-ultra-fp4": { reasoning: true, contextWindow: 128000, maxOutput: 32000 },
+    "claude-opus-4-6":   { vision: true, reasoning: true, search: true, thinkingFormat: "claude-adaptive", contextWindow: 1000000, maxOutput: 128000 },
+    "claude-sonnet-4-6": { vision: true, reasoning: true, search: true, thinkingFormat: "claude-adaptive", contextWindow: 1000000, maxOutput: 128000 },
   },
 };
 
