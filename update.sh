@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Update 9router: rebase home branch onto upstream master, rebuild container.
-# If rebase (or stash pop) hits a conflict: stop, hand off to `pi` for resolution.
+# If rebase (or stash pop) hits a conflict: stop, hand off to `amp` for resolution.
 # Never deploys when conflicts are present.
 #
 # Env:
@@ -35,16 +35,18 @@ PRE_REBASE=$(git rev-parse HEAD)
 echo "==> Rebasing $HOME_BRANCH onto $UPSTREAM (from $PRE_REBASE)"
 if ! git rebase "$UPSTREAM"; then
   echo "!!  Rebase failed on $HOME_BRANCH -> $UPSTREAM."
-  # ponytail: don't --abort; leave state as-is so pi can see what failed
+  # don't --abort; leave state as-is so amp can see what failed
   echo "    Repo left as-is (rebase in progress or halted). Do NOT run docker compose up."
   PROMPT="git rebase $UPSTREAM into $HOME_BRANCH failed in $(pwd). Run \`git status\` to see what needs attention (conflicts, missing upstream, etc.), fix it, then \`git rebase --continue\` if mid-rebase. Do NOT run docker compose up — I'll re-run update.sh after."
   if [[ -n "$STASH_REF" ]]; then
     PROMPT+=" Working-tree snapshot $STASH_REF is stashed; ignore it for now."
   fi
-  if command -v pi >/dev/null 2>&1; then
-    exec pi "$PROMPT"
+  if command -v amp >/dev/null 2>&1; then
+    echo "==> Updating amp CLI before handoff"
+    amp update || true
+    exec amp -x "$PROMPT"
   else
-    echo "!!  pi not found on PATH. Resolve manually:"
+    echo "!!  amp not found on PATH. Resolve manually:"
     echo "    git status; fix; git rebase --continue (or --abort); re-run ./update.sh"
     exit 2
   fi
@@ -53,12 +55,14 @@ fi
 if [[ -n "$STASH_REF" ]]; then
   echo "==> Re-applying local stash"
   if ! git stash pop "$STASH_REF"; then
-    echo "!!  Stash pop conflict after a clean rebase. Handing off to pi."
+    echo "!!  Stash pop conflict after a clean rebase. Handing off to amp."
     PROMPT="git stash pop failed after a clean rebase of $HOME_BRANCH onto $UPSTREAM in $(pwd). Run \`git status\`, resolve the conflicts, \`git add\` them, then commit. Do NOT run docker compose up — I'll re-run update.sh after."
-    if command -v pi >/dev/null 2>&1; then
-      exec pi "$PROMPT"
+    if command -v amp >/dev/null 2>&1; then
+      echo "==> Updating amp CLI before handoff"
+      amp update || true
+      exec amp -x "$PROMPT"
     else
-      echo "!!  pi not found. Resolve manually: git status, then git stash pop"
+      echo "!!  amp not found. Resolve manually: git status, then git stash pop"
       exit 2
     fi
   fi
