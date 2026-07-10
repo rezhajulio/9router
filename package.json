@@ -13,6 +13,8 @@
     "dev:bun": "bun --bun next dev --webpack --port 20127",
     "build:bun": "bun --bun next build --webpack",
     "start:bun": "bun ./.next/standalone/custom-server.js",
+    "generate:registry": "node scripts/generate-registry-index.mjs",
+    "check:registry": "node scripts/generate-registry-index.mjs --check",
     "cli:pack": "npm --prefix cli run pack:cli",
     "cli:publish": "npm --prefix cli run publish:cli"
   },

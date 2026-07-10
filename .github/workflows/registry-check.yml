@@ -1,0 +1,26 @@
+name: Check provider registry
+
+on:
+  pull_request:
+    paths:
+      - "open-sse/providers/registry/**"
+      - "scripts/generate-registry-index.mjs"
+      - "package.json"
+      - ".github/workflows/registry-check.yml"
+  push:
+    branches: [main, master]
+    paths:
+      - "open-sse/providers/registry/**"
+      - "scripts/generate-registry-index.mjs"
+      - "package.json"
+      - ".github/workflows/registry-check.yml"
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 24
+      - run: npm run check:registry
