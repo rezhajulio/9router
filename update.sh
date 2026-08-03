@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Update 9router: rebase home branch onto upstream master, rebuild container.
-# If rebase (or stash pop) hits a conflict: stop, hand off to non-interactive `pi` for resolution.
+# If rebase (or stash pop) hits a conflict: stop, hand off to non-interactive `agy` for resolution.
 # Never deploys when conflicts are present.
 #
 # Env:
@@ -37,7 +37,16 @@ finish_registry_only_rebase_conflicts() {
   return 0
 }
 
+GIT_DIR=$(git rev-parse --git-dir)
 CURRENT_BRANCH=$(git rev-parse --abbrev-ref HEAD)
+if [[ "$CURRENT_BRANCH" == "HEAD" ]]; then
+  if [[ -f "$GIT_DIR/rebase-merge/head-name" ]]; then
+    CURRENT_BRANCH=$(sed 's@refs/heads/@@' "$GIT_DIR/rebase-merge/head-name")
+  elif [[ -f "$GIT_DIR/rebase-apply/head-name" ]]; then
+    CURRENT_BRANCH=$(sed 's@refs/heads/@@' "$GIT_DIR/rebase-apply/head-name")
+  fi
+fi
+
 if [[ "$CURRENT_BRANCH" != "$HOME_BRANCH" ]]; then
   echo "!!  Wrong branch: $CURRENT_BRANCH (expected $HOME_BRANCH)"
   echo "    Switch with:  git checkout $HOME_BRANCH"
@@ -60,17 +69,17 @@ echo "==> Rebasing $HOME_BRANCH onto $UPSTREAM (from $PRE_REBASE)"
 if ! git rebase "$UPSTREAM"; then
   if ! finish_registry_only_rebase_conflicts; then
     echo "!!  Rebase failed on $HOME_BRANCH -> $UPSTREAM."
-    # don't --abort; leave state as-is so pi can see what failed
+    # don't --abort; leave state as-is so agy can see what failed
     echo "    Repo left as-is (rebase in progress or halted). Do NOT run docker compose up."
     PROMPT="git rebase $UPSTREAM into $HOME_BRANCH failed in $(pwd). Run \`git status\` to see what needs attention (conflicts, missing upstream, etc.), fix it, then \`git rebase --continue\` if mid-rebase. Do NOT run docker compose up — I'll re-run update.sh after."
     if [[ -n "$STASH_REF" ]]; then
       PROMPT+=" Working-tree snapshot $STASH_REF is stashed; ignore it for now."
     fi
-    if command -v pi >/dev/null 2>&1; then
-      echo "==> Handing conflict to Pi (9router/minimax-m3)"
-      exec pi --print --no-session --approve --model 9router/minimax-m3 "$PROMPT"
+    if command -v agy >/dev/null 2>&1; then
+      echo "==> Handing conflict to agy non-interactively"
+      exec agy --dangerously-skip-permissions --print-timeout 15m -p "$PROMPT"
     else
-      echo "!!  pi not found on PATH. Resolve manually:"
+      echo "!!  agy not found on PATH. Resolve manually:"
       echo "    git status; fix; git rebase --continue (or --abort); re-run ./update.sh"
       exit 2
     fi
@@ -80,13 +89,13 @@ fi
 if [[ -n "$STASH_REF" ]]; then
   echo "==> Re-applying local stash"
   if ! git stash pop "$STASH_REF"; then
-    echo "!!  Stash pop conflict after a clean rebase. Handing off to Pi."
+    echo "!!  Stash pop conflict after a clean rebase. Handing off to agy."
     PROMPT="git stash pop failed after a clean rebase of $HOME_BRANCH onto $UPSTREAM in $(pwd). Run \`git status\`, resolve the conflicts, \`git add\` them, then commit. Do NOT run docker compose up — I'll re-run update.sh after."
-    if command -v pi >/dev/null 2>&1; then
-      echo "==> Handing conflict to Pi (9router/minimax-m3)"
-      exec pi --print --no-session --approve --model 9router/minimax-m3 "$PROMPT"
+    if command -v agy >/dev/null 2>&1; then
+      echo "==> Handing conflict to agy non-interactively"
+      exec agy --dangerously-skip-permissions --print-timeout 15m -p "$PROMPT"
     else
-      echo "!!  pi not found. Resolve manually: git status, then git stash pop"
+      echo "!!  agy not found. Resolve manually: git status, then git stash pop"
       exit 2
     fi
   fi
