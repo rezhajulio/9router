@@ -110,11 +110,21 @@ fi
 echo "==> Verifying generated provider registry"
 npm run check:registry
 
-echo "==> Rebuilding and restarting container"
-docker compose up -d --build
+REGISTRY="localhost:5000"
+IMAGE_TAG="${REGISTRY}/9router:local"
+COMPOSE_DIR="/home/rezha/Workspace/infra/docker"
 
-echo "==> Removing old unused Docker build images"
+echo "==> Building image locally"
+docker build -t "${IMAGE_TAG}" .
+
+echo "==> Pushing image to local registry"
+docker push "${IMAGE_TAG}"
+
+echo "==> Removing old unused Docker images"
 docker image prune -f
+
+echo "==> Restarting container with new image"
+cd "${COMPOSE_DIR}" && docker compose pull 9router && docker compose up -d 9router
 
 echo "==> Waiting for container to settle"
 sleep 5
